@@ -7,7 +7,12 @@ import { errorHandler } from './errors/app-error.js';
 import { healthRoutes } from './modules/health/health.routes.js';
 import { userRoutes } from './modules/users/user.routes.js';
 import { cuisineRoutes } from './modules/cuisines/cuisine.routes.js';
+import { restaurantRoutes } from './modules/restaurants/restaurant.routes.js';
+import { queueRoutes } from './modules/queues/queue.routes.js';
+import { groupRoutes } from './modules/groups/group.routes.js';
+import { orderRoutes } from './modules/orders/order.routes.js';
 import { prismaPlugin } from './plugins/prisma.js';
+import { socketPlugin } from './plugins/socket.js';
 import { swaggerPlugin } from './plugins/swagger.js';
 
 export function buildApp(opts: FastifyHttpOptions<Server> = {}): FastifyInstance {
@@ -49,10 +54,17 @@ export function buildApp(opts: FastifyHttpOptions<Server> = {}): FastifyInstance
   // OpenAPI / Swagger Documentation
   app.register(swaggerPlugin);
 
+  // Real-time WebSocket / Socket.IO Plugin
+  app.register(socketPlugin);
+
   // Routes
   app.register(healthRoutes);
   app.register(userRoutes);
   app.register(cuisineRoutes);
+  app.register(restaurantRoutes);
+  app.register(queueRoutes);
+  app.register(groupRoutes);
+  app.register(orderRoutes);
 
   return app;
 }

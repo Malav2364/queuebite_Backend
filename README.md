@@ -25,16 +25,24 @@ queuebite_backend/
 │   ├── errors/
 │   │   └── app-error.ts        # Structured AppError classes and global error handler
 │   ├── modules/
-│   │   └── health/
-│   │       └── health.routes.ts# Liveness (/health) and DB readiness (/ready) probes
+│   │   ├── health/             # /health, /ready probes
+│   │   ├── users/              # Clerk JWT auth, /sync, /me profile & preferences
+│   │   ├── cuisines/           # Cuisine taxonomy and auto-seeding
+│   │   ├── restaurants/        # Restaurant discovery, digital menus, and table layout
+│   │   └── queues/             # Virtual queue engine, table assignments, and event auditing
 │   ├── plugins/
 │   │   ├── prisma.ts           # Prisma client Fastify plugin
+│   │   ├── socket.ts           # Socket.IO WebSocket server plugin
 │   │   └── swagger.ts          # OpenAPI / Swagger UI plugin
 │   ├── app.ts                  # Fastify application factory
 │   └── server.ts               # Server entry point with graceful shutdown
 ├── tests/
-│   └── health.test.ts          # Automated integration tests
-├── .env.example                # Example environment variables
+│   ├── health.test.ts          # Liveness & DB readiness tests
+│   ├── socket.test.ts          # Real-time WebSocket room & event tests
+│   ├── user.test.ts            # Auth & preferences tests
+│   ├── restaurant.test.ts      # Restaurant, menu, and table tests
+│   └── queue.test.ts           # Virtual queue state engine tests
+├── .env.example
 ├── package.json
 ├── tsconfig.json
 └── vitest.config.ts
