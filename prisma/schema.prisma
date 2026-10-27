@@ -1,0 +1,356 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum StaffRole {
+  STAFF
+  MANAGER
+  OWNER
+}
+
+enum TableStatus {
+  AVAILABLE
+  OCCUPIED
+  CLEANING
+  RESERVED
+  INACTIVE
+}
+
+enum QueueEntryStatus {
+  WAITING
+  CALLED
+  SEATED
+  COMPLETED
+  CANCELLED
+  EXPIRED
+  NO_SHOW
+}
+
+enum PriceRange {
+  BUDGET
+  MODERATE
+  EXPENSIVE
+  FINE_DINING
+}
+
+// -----------------------------------------------------------------------------
+// USER & PREFERENCES
+// -----------------------------------------------------------------------------
+
+model User {
+  id              String                    @id @default(uuid())
+  clerkId         String                    @unique
+  email           String                    @unique
+  name            String?
+  phone           String?
+  avatarUrl       String?
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+
+  preferences     UserPreference?
+  queueEntries    QueueEntry[]
+  savedRestaurants SavedRestaurant[]
+  staffMemberships RestaurantStaffMembership[]
+  notifications   Notification[]
+
+  @@index([clerkId])
+  @@index([email])
+}
+
+model UserPreference {
+  id                 String                     @id @default(uuid())
+  userId             String                     @unique
+  user               User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  maxWaitMinutes     Int?
+  preferredPartySize Int?                       @default(2)
+  pushNotifications  Boolean                    @default(true)
+  smsNotifications   Boolean                    @default(false)
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+
+  cuisines           UserCuisinePreference[]
+  dietary            UserDietaryPreference[]
+}
+
+model UserCuisinePreference {
+  id           String         @id @default(uuid())
+  preferenceId String
+  preference   UserPreference @relation(fields: [preferenceId], references: [id], onDelete: Cascade)
+  cuisineId    String
+  cuisine      Cuisine        @relation(fields: [cuisineId], references: [id], onDelete: Cascade)
+
+  @@unique([preferenceId, cuisineId])
+}
+
+model UserDietaryPreference {
+  id           String         @id @default(uuid())
+  preferenceId String
+  preference   UserPreference @relation(fields: [preferenceId], references: [id], onDelete: Cascade)
+  tag          String
+
+  @@unique([preferenceId, tag])
+}
+
+// -----------------------------------------------------------------------------
+// RESTAURANTS & TAXONOMY
+// -----------------------------------------------------------------------------
+
+model Cuisine {
+  id          String                  @id @default(uuid())
+  name        String                  @unique
+  slug        String                  @unique
+  iconUrl     String?
+  restaurants RestaurantCuisine[]
+  userPrefs   UserCuisinePreference[]
+  createdAt   DateTime                @default(now())
+}
+
+model Restaurant {
+  id                 String                      @id @default(uuid())
+  name               String
+  slug               String                      @unique
+  description        String?
+  phone              String?
+  email              String?
+  website            String?
+  priceRange         PriceRange                  @default(MODERATE)
+  coverImageUrl      String?
+  logoUrl            String?
+  isQueueOpen        Boolean                     @default(true)
+  isActive           Boolean                     @default(true)
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+
+  location           RestaurantLocation?
+  operatingSettings  RestaurantOperatingSettings?
+  hours              RestaurantHours[]
+  cuisines           RestaurantCuisine[]
+  photos             RestaurantPhoto[]
+  tables             RestaurantTable[]
+  queueEntries       QueueEntry[]
+  staffMemberships   RestaurantStaffMembership[]
+  menuCategories     MenuCategory[]
+  savedByUsers       SavedRestaurant[]
+
+  @@index([name])
+  @@index([isQueueOpen])
+}
+
+model RestaurantLocation {
+  id           String     @id @default(uuid())
+  restaurantId String     @unique
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  addressLine1 String
+  addressLine2 String?
+  city         String
+  state        String
+  postalCode   String
+  country      String     @default("IN")
+  latitude     Float
+  longitude    Float
+
+  @@index([latitude, longitude])
+  @@index([city])
+}
+
+model RestaurantOperatingSettings {
+  id                    String     @id @default(uuid())
+  restaurantId          String     @unique
+  restaurant            Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  minPartySize          Int        @default(1)
+  maxPartySize          Int        @default(12)
+  estimatedMinutesPerParty Int     @default(15)
+  callTimeoutMinutes    Int        @default(10)
+  maxActiveQueueEntries Int        @default(50)
+  autoCallNextParty     Boolean    @default(false)
+}
+
+model RestaurantHours {
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  dayOfWeek    Int        // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  openTime     String     // "HH:mm" in 24h format
+  closeTime    String     // "HH:mm" in 24h format
+  isClosed     Boolean    @default(false)
+
+  @@unique([restaurantId, dayOfWeek])
+}
+
+model RestaurantCuisine {
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  cuisineId    String
+  cuisine      Cuisine    @relation(fields: [cuisineId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, cuisineId])
+}
+
+model RestaurantPhoto {
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  url          String
+  caption      String?
+  sortOrder    Int        @default(0)
+  createdAt    DateTime   @default(now())
+}
+
+model RestaurantStaffMembership {
+  id           String     @id @default(uuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  role         StaffRole  @default(STAFF)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([userId, restaurantId])
+}
+
+// -----------------------------------------------------------------------------
+// MENUS
+// -----------------------------------------------------------------------------
+
+model MenuCategory {
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  sortOrder    Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  items        MenuItem[]
+}
+
+model MenuItem {
+  id          String       @id @default(uuid())
+  categoryId  String
+  category    MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  price       Float
+  imageUrl    String?
+  isAvailable Boolean      @default(true)
+  isVegetarian Boolean     @default(false)
+  isSpicy     Boolean      @default(false)
+  sortOrder   Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+// -----------------------------------------------------------------------------
+// TABLES & QUEUE ENGINE
+// -----------------------------------------------------------------------------
+
+model RestaurantTable {
+  id           String            @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  tableNumber  String
+  capacity     Int
+  minCapacity  Int               @default(1)
+  status       TableStatus       @default(AVAILABLE)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  assignments  TableAssignment[]
+
+  @@unique([restaurantId, tableNumber])
+  @@index([restaurantId, status])
+}
+
+model QueueEntry {
+  id                      String            @id @default(uuid())
+  restaurantId            String
+  restaurant              Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  userId                  String?
+  user                    User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  guestName               String
+  guestPhone              String
+  partySize               Int
+  status                  QueueEntryStatus  @default(WAITING)
+  queueNumber             Int
+  estimatedWaitMinutes    Int?
+  notes                   String?
+  idempotencyKey          String?           @unique
+  joinedAt                DateTime          @default(now())
+  calledAt                DateTime?
+  seatedAt                DateTime?
+  completedAt             DateTime?
+  cancelledAt             DateTime?
+  noShowAt                DateTime?
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+
+  events                  QueueEvent[]
+  tableAssignment         TableAssignment?
+
+  @@index([restaurantId, status])
+  @@index([userId, status])
+  @@index([restaurantId, joinedAt])
+}
+
+model QueueEvent {
+  id           String           @id @default(uuid())
+  queueEntryId String
+  queueEntry   QueueEntry       @relation(fields: [queueEntryId], references: [id], onDelete: Cascade)
+  fromStatus   QueueEntryStatus?
+  toStatus     QueueEntryStatus
+  triggeredBy  String?          // userId or "SYSTEM" or "STAFF"
+  reason       String?
+  metadata     Json?
+  createdAt    DateTime         @default(now())
+
+  @@index([queueEntryId, createdAt])
+}
+
+model TableAssignment {
+  id           String          @id @default(uuid())
+  queueEntryId String          @unique
+  queueEntry   QueueEntry      @relation(fields: [queueEntryId], references: [id], onDelete: Cascade)
+  tableId      String
+  table        RestaurantTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  assignedAt   DateTime        @default(now())
+  freedAt      DateTime?
+
+  @@index([tableId])
+}
+
+// -----------------------------------------------------------------------------
+// PERSONALIZATION & NOTIFICATIONS
+// -----------------------------------------------------------------------------
+
+model SavedRestaurant {
+  id           String     @id @default(uuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([userId, restaurantId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String   // e.g. "QUEUE_CALLED", "TABLE_READY"
+  metadata  Json?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead])
+}
